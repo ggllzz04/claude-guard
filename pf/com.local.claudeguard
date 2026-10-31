@@ -1,0 +1,12 @@
+# Claude Guard · IPv6 出站封锁
+# 加载到 anchor: com.local.claudeguard
+# 放行 loopback / link-local / multicast，其余 IPv6 出站全部丢弃。
+# IPv4 路由不受此 anchor 影响。
+
+pass out quick on lo0 inet6 all
+pass out quick inet6 from fe80::/10 to any
+pass out quick inet6 from any to fe80::/10
+pass out quick inet6 from ff00::/8 to any
+pass out quick inet6 from any to ff00::/8
+
+block drop out quick inet6 all

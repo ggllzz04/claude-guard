@@ -1,0 +1,38 @@
+# Swift / Xcode build output
+.build/
+build/
+.swiftpm/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Local credentials, runtime data and developer backups
+.env
+.env.*
+!.env.example
+backup/
+backups/
+private/
+.local/
+*.log
+*.jsonl
+*.sock
+*.key
+*.pem
+*.p12
+*.mobileprovision
+settings.json
+
+# Local handover notes, machine-specific audits and screenshots
+HANDOVER.md
+docs/audit-*.md
+docs/ui-overview.png
+docs/connections-audit.png
+
+# OS / editor / Python cache
+.DS_Store
+.AppleDouble
+.idea/
+.vscode/
+__pycache__/
+*.py[cod]

@@ -1,0 +1,16 @@
+name: 问题报告
+description: 提交可复现的问题；请先移除私人信息。
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Claude Guard / macOS 版本
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 复现步骤、预期与实际行为
+      description: 使用虚构节点和地址，避免粘贴订阅、密钥、完整快照或真实连接截图。
+    validations:
+      required: true
