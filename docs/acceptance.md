@@ -22,7 +22,7 @@ python3 scripts/regression-polling.py
 - [ ] `SHA256SUMS.txt` 与本次 DMG、ZIP、卸载脚本相符。
 - [ ] 解压 ZIP 并挂载 DMG，逐项检查安装资源、版本与架构。
 - [ ] 暂存源码与解包产物通过 `scripts/check-privacy.py`，并另行运行密钥扫描工具。
-- [ ] 私有仓库的可见性正确，Release 附件、说明与标签对应同一提交。
+- [ ] 公开仓库的可见性正确，Release 附件、说明与标签对应同一提交。
 
 ## 需要交互验证的系统操作
 

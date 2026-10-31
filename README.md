@@ -6,7 +6,7 @@ macOS 菜单栏应用，用于检查 Claude Desktop / Claude Code 的网络流�
 
 **当前版本：1.2.2 · macOS 26+ · 首个发行包支持 Apple Silicon（arm64）。**
 
-本项目为独立工具，与 Anthropic、Apple、Clash Verge 没有隶属关系。仓库采用私有分发，使用条款见 [LICENSE](LICENSE)。
+本项目为独立工具，与 Anthropic、Apple、Clash Verge 没有隶属关系。源码与发行包公开可见，使用条款见 [LICENSE](LICENSE)。
 
 ## 功能
 
@@ -32,7 +32,7 @@ macOS 菜单栏应用，用于检查 Claude Desktop / Claude Code 的网络流�
 
 ## 下载与安装
 
-1. 在本仓库的 [Releases](https://github.com/ggllzz04/claude-guard/releases) 下载 `Claude-Guard-1.2.2-arm64.dmg`。私有仓库的下载需要已获授权的 GitHub 账号。
+1. 在本仓库的 [Releases](https://github.com/ggllzz04/claude-guard/releases) 下载 `Claude-Guard-1.2.2-arm64.dmg`。
 2. 打开 DMG，将 **Claude Guard.app** 拖到「应用程序」。
 3. 打开应用，点击「初始化并安装」，在 macOS 授权窗口中输入管理员密码。
 4. 在 Clash Verge 中启用 TUN 和 `🤖 AI` 策略组；导入并启用 [config/ClaudeGuard.yaml](config/ClaudeGuard.yaml) 作为 Merge 配置。安装器只会在已有 profiles 目录中放置模板，**不会替你启用 Merge**，模板也不包含代理节点或订阅。
