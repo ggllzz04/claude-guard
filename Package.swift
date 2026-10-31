@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "ClaudeGuard",
+    name: "RouteGuard",
     platforms: [.macOS("26.0")],
     products: [
         .executable(name: "GuardDaemon", targets: ["GuardDaemon"]),

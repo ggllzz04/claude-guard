@@ -48,7 +48,7 @@ struct DashboardView: View {
         // 窗口失去焦点时 macOS 默认把玻璃变灰、把彩色按钮去色，看起来像刷新后变了颜色。
         // 这是监控面板，失焦时也要能一眼看清状态，所以始终用活跃外观。
         .environment(\.controlActiveState, .key)
-        .alert("Claude Guard", isPresented: $state.showError) {
+        .alert("Route Guard", isPresented: $state.showError) {
             Button("好", role: .cancel) {}
         } message: {
             Text(state.lastError ?? "未知错误")
@@ -66,8 +66,8 @@ struct SidebarView: View {
                     .resizable()
                     .interpolation(.high)
                     .frame(width: 36, height: 36)
-                    .accessibilityLabel("Claude Guard 折光护盾")
-                Text("Claude Guard")
+                    .accessibilityLabel("Route Guard 折光护盾")
+                Text("Route Guard")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundStyle(Theme.text)
             }

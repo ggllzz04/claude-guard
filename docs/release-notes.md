@@ -1,34 +1,29 @@
-Claude Guard 首个 GitHub Release，沿用本地开发版本号 **1.2.2**。
+**Route Guard 1.2.3**：统一项目、应用和发行包名称。
 
-### 支持范围
+### 本版变化
 
-- macOS 26 或更高。
-- Apple Silicon / arm64；Intel 尚未验证。
-- Clash Verge Rev / mihomo、TUN、rule 模式与 `🤖 AI` Selector。
+- 项目和应用显示名统一为 **Route Guard**，仓库改为 `ggllzz04/route-guard`。
+- README、窗口、菜单、通知及应用的版本信息使用新名称。
+- 新安装包为 `Route-Guard-1.2.3-arm64.dmg` / `.zip`，Merge 模板改为 `RouteGuard.yaml`，CLI 为 `route-guardctl`。
+- 保留旧版服务标识、数据目录及 CLI 兼容入口；升级继续使用已有设置、节点批准和保护开关。
+- 安装器备份并迁移旧名称应用；新服务验证通过后再清理旧应用路径。进程识别和保护规则保持原有支持范围。
 
-### 本版内容
+### 支持与安装
 
-- Liquid Glass 菜单栏面板、root 守护进程与命令行工具。
-- TUN、路由、系统代理、节点指纹、首匹配规则与连接审计。
-- 默认观察模式，明确启用后才自动关闭受管理进程。
-- 对短暂读取失败保留宽限期；确认关键风险时执行保护。
-- 安装升级、PF IPv6 anchor、本地备份与卸载脚本。
-- 清理个人网络绑定与私人配置，补齐测试、隐私说明和发布流程。
+macOS 26+、Apple Silicon / arm64，需要 Clash Verge Rev / mihomo、TUN、rule 模式与 `🤖 AI` Selector。下载 DMG，将 Route Guard 拖到「应用程序」，打开并完成初始化。
 
-### 安装
+新安装默认只观察；确认节点和检查结果后，再按需开启保护。已启用的旧版 Merge 可以继续使用；新安装请导入仓库中的 `config/RouteGuard.yaml`。
 
-下载 arm64 DMG，将应用拖入「应用程序」，打开并点击「初始化并安装」。在 Clash Verge 中启用通用 Merge 配置和 TUN，批准当前节点后再按需开启保护。升级保留已有设置和保护开关。
+### 使用说明
 
-### 需要了解
-
-- 使用 ad-hoc 签名，**未进行 Developer ID 签名或 Apple 公证**。按 macOS 的「隐私与安全性」提示处理首次启动。
-- 安装器启用的 PF 规则阻断系统全局 IPv6 出站（loopback、link-local、multicast 除外），独立于进程保护开关。
-- 本工具在运行期间检查，不能保证首包防泄漏。连接审计问题只提示。
-- 自动验证使用隔离 mock；发布流程未对真实 Claude 执行故障注入，也未自动重装本机服务。
+- ad-hoc 签名，尚未进行 Developer ID 签名或 Apple 公证；首次启动请按 macOS「隐私与安全性」提示处理。
+- 安装器加载的 PF 规则阻断系统全局 IPv6 出站（loopback、link-local、multicast 除外），与进程保护开关独立。
+- 保护只覆盖运行期间的检查，无法保证首包防泄漏。连接审计问题只提示。
+- 自动验证使用隔离 mock；发布流程不重装本机服务、不对真实客户端执行故障注入。
 
 ### 附件
 
-- `Claude-Guard-1.2.2-arm64.dmg`：推荐安装方式。
-- `Claude-Guard-1.2.2-arm64.zip`：同一应用的 ZIP 包。
-- `uninstall.sh`：卸载；`sudo bash uninstall.sh --purge` 可同时清除应用支持目录。
-- `SHA256SUMS.txt`：附件 SHA-256 校验清单。
+- `Route-Guard-1.2.3-arm64.dmg`：推荐安装方式。
+- `Route-Guard-1.2.3-arm64.zip`：同一应用的 ZIP 包。
+- `uninstall.sh`：卸载脚本，支持 `--purge` 清除应用支持目录。
+- `SHA256SUMS.txt`：附件的 SHA-256 校验清单。

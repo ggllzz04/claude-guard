@@ -1,6 +1,6 @@
 # 发布流程
 
-仓库公开可见；主分支为 `main`。版本采用 `v主版本.次版本.修订版本` 标签。首个 GitHub Release 沿用应用版本 `v1.2.2`。
+仓库公开可见；主分支为 `main`。版本采用 `v主版本.次版本.修订版本` 标签。当前版本为 `v1.2.3`；首个 GitHub Release 为 `v1.2.2`。
 
 ## 1. 准备版本
 
@@ -44,14 +44,14 @@ bash scripts/package-release.sh
 
 产物位于 `build/release/`：
 
-- `Claude-Guard-<version>-<arch>.dmg`
-- `Claude-Guard-<version>-<arch>.zip`
+- `Route-Guard-<version>-<arch>.dmg`
+- `Route-Guard-<version>-<arch>.zip`
 - `uninstall.sh`
 - `SHA256SUMS.txt`
 
 打包会验证代码签名和 DMG、扫描应用中的私人路径和常见凭证，并生成校验清单。使用干净临时目录解压 ZIP、只读挂载 DMG，复查版本、架构、安装资源及内容扫描。只上传预期的四个附件，避免把旧版本产物一起发布。
 
-构建输出默认为当前机器的原生架构。首发仅验证 arm64。Developer ID 签名和公证尚未集成，不得将 ad-hoc 签名标记为已公证。
+构建输出默认为当前机器的原生架构。当前仅验证 arm64。Developer ID 签名和公证尚未集成，不得将 ad-hoc 签名标记为已公证。
 
 ## 5. 创建标签与 Release
 
@@ -59,13 +59,13 @@ bash scripts/package-release.sh
 
 ```bash
 VERSION="$(cat VERSION)"
-git tag -a "v$VERSION" -m "Claude Guard $VERSION"
+git tag -a "v$VERSION" -m "Route Guard $VERSION"
 git push origin main "v$VERSION"
 gh release create "v$VERSION" \
-  "build/release/Claude-Guard-$VERSION-arm64.dmg" \
-  "build/release/Claude-Guard-$VERSION-arm64.zip" \
+  "build/release/Route-Guard-$VERSION-arm64.dmg" \
+  "build/release/Route-Guard-$VERSION-arm64.zip" \
   build/release/uninstall.sh build/release/SHA256SUMS.txt \
-  --verify-tag --title "Claude Guard v$VERSION" \
+  --verify-tag --title "Route Guard v$VERSION" \
   --notes-file docs/release-notes.md
 ```
 

@@ -13,11 +13,11 @@ swift build -c "$CONFIG" \
     -Xcc "-ffile-prefix-map=$ROOT=."
 BIN="$(swift build -c "$CONFIG" --show-bin-path)"
 
-APP="$ROOT/build/Claude Guard.app"
+APP="$ROOT/build/Route Guard.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$ROOT/build/bin"
 
-cp "$BIN/GuardMenu" "$APP/Contents/MacOS/ClaudeGuard"
+cp "$BIN/GuardMenu" "$APP/Contents/MacOS/RouteGuard"
 cp "$BIN/GuardDaemon" "$ROOT/build/bin/GuardDaemon"
 cp "$BIN/GuardCLI" "$ROOT/build/bin/GuardCLI"
 cp "$BIN/GuardMock" "$ROOT/build/bin/GuardMock"
@@ -31,7 +31,7 @@ cp "$ROOT/scripts/setup-install.sh" "$PAYLOAD/setup-install.sh"
 cp "$ROOT/scripts/uninstall.sh" "$PAYLOAD/uninstall.sh"
 cp "$ROOT/config/com.local.claudeguard.daemon.plist" "$PAYLOAD/daemon.plist"
 cp "$ROOT/config/com.local.claudeguard.menu.plist" "$PAYLOAD/menu.plist"
-cp "$ROOT/config/ClaudeGuard.yaml" "$PAYLOAD/ClaudeGuard.yaml"
+cp "$ROOT/config/RouteGuard.yaml" "$PAYLOAD/RouteGuard.yaml"
 cp "$ROOT/pf/com.local.claudeguard" "$PAYLOAD/ipv6.pf"
 chmod 755 "$PAYLOAD/setup-install.sh" "$PAYLOAD/uninstall.sh"
 ICONSET="$ROOT/build/AppIcon.iconset"
@@ -49,15 +49,15 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleDevelopmentRegion</key>
     <string>zh_CN</string>
     <key>CFBundleExecutable</key>
-    <string>ClaudeGuard</string>
+    <string>RouteGuard</string>
     <key>CFBundleIdentifier</key>
     <string>com.local.claudeguard.app</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Claude Guard</string>
+    <string>Route Guard</string>
     <key>CFBundleDisplayName</key>
-    <string>Claude Guard</string>
+    <string>Route Guard</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -75,13 +75,13 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>NSHumanReadableCopyright</key>
-    <string>Local-only Claude traffic guard</string>
+    <string>Local proxy route guard</string>
 </dict>
 </plist>
 PLIST
 
 if [ "$CONFIG" = release ]; then
-    for binary in "$APP/Contents/MacOS/ClaudeGuard" "$PAYLOAD/GuardDaemon" "$PAYLOAD/GuardCLI"; do
+    for binary in "$APP/Contents/MacOS/RouteGuard" "$PAYLOAD/GuardDaemon" "$PAYLOAD/GuardCLI"; do
         strip -S "$binary"
     done
 fi

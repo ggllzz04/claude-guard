@@ -17,6 +17,7 @@ USER_HOME="$(dscl . -read "/Users/$USER_NAME" NFSHomeDirectory | cut -d ' ' -f 2
 echo "== 停止守护 =="
 launchctl bootout system "/Library/LaunchDaemons/com.local.claudeguard.daemon.plist" >/dev/null 2>&1 || true
 launchctl bootout "system/com.local.claudeguard.daemon" >/dev/null 2>&1 || true
+pkill -x RouteGuard >/dev/null 2>&1 || true
 pkill -x ClaudeGuard >/dev/null 2>&1 || true
 
 echo "== 移除 PF anchor =="
@@ -30,8 +31,8 @@ pfctl -f /etc/pf.conf >/dev/null 2>&1 || true
 rm -f "/etc/pf.anchors/com.local.claudeguard"
 
 echo "== 移除 App / CLI / 启动项 =="
-rm -rf "/Applications/Claude Guard.app"
-rm -f "/usr/local/bin/claude-guardctl"
+rm -rf "/Applications/Route Guard.app" "/Applications/Claude Guard.app"
+rm -f "/usr/local/bin/route-guardctl" "/usr/local/bin/claude-guardctl"
 rm -f "/Library/PrivilegedHelperTools/com.local.claudeguard.daemon"
 rm -f "/Library/LaunchDaemons/com.local.claudeguard.daemon.plist"
 launchctl bootout "gui/$USER_UID" "$USER_HOME/Library/LaunchAgents/com.local.claudeguard.menu.plist" >/dev/null 2>&1 || true
@@ -41,6 +42,7 @@ if [ "$PURGE" -eq 1 ]; then
     echo "== 清理本地数据 =="
     rm -rf "/Library/Application Support/Claude Guard"
     rm -rf "$USER_HOME/Library/Application Support/Claude Guard"
+    rm -f "$USER_HOME/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/RouteGuard.yaml"
     rm -f "$USER_HOME/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles/ClaudeGuard.yaml"
 fi
 

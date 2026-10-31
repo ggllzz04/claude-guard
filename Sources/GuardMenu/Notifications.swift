@@ -33,10 +33,10 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     private func deliver(id: String, title: String, body: String) {
         let content = UNMutableNotificationContent()
-        content.title = "Claude Guard · \(title)"
+        content.title = "Route Guard · \(title)"
         content.body = body
         content.sound = .default
-        content.threadIdentifier = "claude-guard.protection"
+        content.threadIdentifier = "route-guard.protection"
         let request = UNNotificationRequest(identifier: id, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request) { error in
             if let error { NSLog("发送通知失败：%@", error.localizedDescription) }

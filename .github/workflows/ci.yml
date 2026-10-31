@@ -24,6 +24,7 @@ jobs:
           python3 -m py_compile scripts/*.py
           for plist in config/*.plist; do plutil -lint "$plist"; done
           python3 scripts/check-privacy.py
+          python3 -c "from pathlib import Path; assert 'claude' not in Path('README.md').read_text().casefold()"
       - name: Run unit tests
         run: bash scripts/test.sh
       - name: Build release application
@@ -33,4 +34,4 @@ jobs:
           BIN="$(swift build -c release --show-bin-path)"
           "$BIN/GuardBench" --self-test
       - name: Check bundled files for private data
-        run: python3 scripts/check-privacy.py "build/Claude Guard.app"
+        run: python3 scripts/check-privacy.py "build/Route Guard.app"

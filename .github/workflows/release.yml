@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing version tag (for example v1.2.2)
+        description: Existing version tag (for example v1.2.3)
         required: true
         type: string
 permissions:
@@ -44,5 +44,5 @@ jobs:
         run: |
           gh release create "$RELEASE_TAG" build/release/* \
             --verify-tag --draft \
-            --title "Claude Guard $RELEASE_TAG" \
+            --title "Route Guard $RELEASE_TAG" \
             --notes-file docs/release-notes.md

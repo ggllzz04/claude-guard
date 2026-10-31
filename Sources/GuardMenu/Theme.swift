@@ -22,7 +22,7 @@ extension NSColor {
 
 // 每个颜色只创建一次（static let），名字固定；旧版每次都用 UUID 生成新名字。
 private func guardDynamic(_ name: String, light: NSColor, dark: NSColor) -> Color {
-    Color(nsColor: NSColor(name: NSColor.Name("claude-guard-\(name)")) { appearance in
+    Color(nsColor: NSColor(name: NSColor.Name("route-guard-\(name)")) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
     })
 }

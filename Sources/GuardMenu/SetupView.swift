@@ -18,7 +18,7 @@ final class SetupController: ObservableObject {
         if let window { window.makeKeyAndOrderFront(nil); return }
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 510),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = "设置 Claude Guard"
+        window.title = "设置 Route Guard"
         window.contentView = NSHostingView(rootView: SetupView(controller: self))
         window.isReleasedWhenClosed = false
         window.center()
@@ -37,7 +37,7 @@ final class SetupController: ObservableObject {
         func shellQuote(_ value: String) -> String { "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'" }
         let command = "/bin/bash " + shellQuote(scriptPath)
         let escaped = command.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        let source = "do shell script \"\(escaped)\" with administrator privileges with prompt \"Claude Guard 需要安装本地守护进程和 IPv6 防护。\""
+        let source = "do shell script \"\(escaped)\" with administrator privileges with prompt \"Route Guard 需要安装本地守护进程和 IPv6 防护。\""
         Task {
             let failure = await Task.detached { () -> String? in
                 var detail: NSDictionary?
@@ -59,7 +59,7 @@ final class SetupController: ObservableObject {
             }
             let config = NSWorkspace.OpenConfiguration()
             config.createsNewApplicationInstance = true
-            NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/Applications/Claude Guard.app"), configuration: config) { _, error in
+            NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/Applications/Route Guard.app"), configuration: config) { _, error in
                 DispatchQueue.main.async {
                     if let error { self.error = error.localizedDescription }
                     else { NSApp.terminate(nil) }

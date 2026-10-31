@@ -298,7 +298,7 @@ struct SettingsView: View {
                 let path = NSHomeDirectory() + "/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/profiles"
                 NSWorkspace.shared.open(URL(fileURLWithPath: path))
             }
-            Text("Claude Guard 1.1 · 本地运行，不上传数据")
+            Text("Route Guard \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "开发版") · 本地运行，不上传数据")
                 .font(.system(size: 10, weight: .regular))
                 .foregroundStyle(Theme.tertiary)
         }

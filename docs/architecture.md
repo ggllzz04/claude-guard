@@ -1,6 +1,6 @@
 # 架构
 
-Claude Guard 包含 SwiftUI / AppKit 菜单栏应用、root 守护进程、CLI，以及共享的 GuardKit。CProc 提供 libproc 桥接。Swift Package 不依赖外部包。
+Route Guard 包含 SwiftUI / AppKit 菜单栏应用、root 守护进程、CLI，以及共享的 GuardKit。CProc 提供 libproc 桥接。Swift Package 不依赖外部包。
 
 ```text
 GuardMenu / GuardCLI

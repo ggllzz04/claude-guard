@@ -80,7 +80,7 @@ struct GuardCLIMain {
                 }
             case "help", "--help", "-h":
                 print("""
-                Usage: claude-guardctl [status|check|block|approve|events|findings] [--json] [--socket PATH]
+                Usage: route-guardctl [status|check|block|approve|events|findings] [--json] [--socket PATH]
                 """)
             default:
                 fputs("未知命令: \(command)\n", stderr)

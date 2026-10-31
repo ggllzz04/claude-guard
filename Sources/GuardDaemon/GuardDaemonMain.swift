@@ -131,7 +131,7 @@ struct GuardDaemonMain {
         signalSource.resume()
         signal(SIGTERM, SIG_IGN)
 
-        print("Claude Guard daemon started (\(mode.rawValue)) socket=\(socketPath)")
+        print("Route Guard daemon started (\(mode.rawValue)) socket=\(socketPath)")
         fflush(stdout)
         RunLoop.main.run()
     }

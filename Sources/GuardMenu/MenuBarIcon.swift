@@ -20,7 +20,7 @@ final class MenuBarIconController: NSObject {
             button.imageScaling = .scaleProportionallyDown
             button.target = self
             button.action = #selector(clicked)
-            button.setAccessibilityLabel("Claude Guard")
+            button.setAccessibilityLabel("Route Guard")
         }
         setState(.unknown)
     }
@@ -37,7 +37,7 @@ final class MenuBarIconController: NSObject {
             attributes: [.foregroundColor: NSColor.systemRed,
                          .font: NSFont.systemFont(ofSize: 11, weight: .bold)]
         )
-        button?.toolTip = "Claude Guard · \(state.title) · ⌘ 拖动调整位置"
+        button?.toolTip = "Route Guard · \(state.title) · ⌘ 拖动调整位置"
         button?.setAccessibilityValue(state.title)
     }
 

@@ -88,7 +88,7 @@ struct MenuBarView: View {
                     .font(.system(size: 10, weight: .regular, design: .monospaced))
                     .foregroundStyle(Theme.secondary)
                 Spacer()
-                Button("退出 Claude Guard") {
+                Button("退出 Route Guard") {
                     NSApplication.shared.terminate(nil)
                 }
                 .buttonStyle(.plain)

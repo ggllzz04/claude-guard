@@ -78,7 +78,7 @@ struct EventsView: View {
         let events = Array((state.snapshot?.events ?? []).reversed())
         VStack(alignment: .leading, spacing: 14) {
             if events.isEmpty {
-                EmptyStateView(icon: "sparkles", title: "还没有事件", detail: "Claude Guard 会在这里记录重要的变化")
+                EmptyStateView(icon: "sparkles", title: "还没有事件", detail: "Route Guard 会在这里记录重要的变化")
                     .glassCard(padding: 16, radius: 20)
             } else {
                 LazyVStack(spacing: 0) {

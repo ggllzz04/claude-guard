@@ -9,11 +9,11 @@ export CONFIG=release
 bash "$ROOT/scripts/build-dmg.sh"
 OUT="$ROOT/build/release"
 mkdir -p "$OUT"
-NAME="Claude-Guard-$VERSION-$ARCH"
+NAME="Route-Guard-$VERSION-$ARCH"
 cp "$ROOT/build/$NAME.dmg" "$OUT/$NAME.dmg"
-ditto -c -k --sequesterRsrc --keepParent "$ROOT/build/Claude Guard.app" "$OUT/$NAME.zip"
+ditto -c -k --sequesterRsrc --keepParent "$ROOT/build/Route Guard.app" "$OUT/$NAME.zip"
 cp "$ROOT/scripts/uninstall.sh" "$OUT/uninstall.sh"
-python3 "$ROOT/scripts/check-privacy.py" "$ROOT/build/Claude Guard.app" "$OUT/uninstall.sh"
+python3 "$ROOT/scripts/check-privacy.py" "$ROOT/build/Route Guard.app" "$OUT/uninstall.sh"
 cd "$OUT"
 shasum -a 256 "$NAME.dmg" "$NAME.zip" uninstall.sh > SHA256SUMS.txt
 shasum -a 256 -c SHA256SUMS.txt

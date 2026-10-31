@@ -1,6 +1,6 @@
-# Claude Guard · Clash Verge Merge 配置
+# Route Guard · Clash Verge Merge 配置
 #
-# 在 Clash Verge 中新建/导入一个 Merge 类型配置，文件名 ClaudeGuard.yaml，
+# 在 Clash Verge 中新建/导入一个 Merge 类型配置，文件名 RouteGuard.yaml，
 # 然后右键启用一次。订阅更新不会覆盖它。
 #
 # 作用：

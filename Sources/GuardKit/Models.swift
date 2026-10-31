@@ -22,7 +22,7 @@ public enum GuardState: String, Codable, CaseIterable, Sendable {
 
     public var subtitle: String {
         switch self {
-        case .protected: return "Claude 的流量经由你选择的 AI 节点"
+        case .protected: return "受管理客户端的流量经由你选择的 AI 节点"
         case .attention: return "发现检查或连接提示，请查看详情"
         case .blocked: return "流量可能绕过 Clash 直连"
         case .disabled: return "保护未开启，只观察不干预"

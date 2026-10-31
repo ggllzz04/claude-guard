@@ -59,7 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.setActivationPolicy(.regular)
         activityToken = ProcessInfo.processInfo.beginActivity(
             options: [.userInitiated],
-            reason: "Claude Guard 持续监控"
+            reason: "Route Guard 持续监控"
         )
         installMainMenu()
         menuBarIcon = MenuBarIconController()
@@ -125,14 +125,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let appItem = NSMenuItem()
         mainMenu.addItem(appItem)
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "关于 Claude Guard",
+        appMenu.addItem(withTitle: "关于 Route Guard",
                         action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)),
                         keyEquivalent: "")
         let setupItem = NSMenuItem(title: "初始化 / 修复环境…", action: #selector(showSetup), keyEquivalent: "")
         setupItem.target = self
         appMenu.addItem(setupItem)
         appMenu.addItem(NSMenuItem.separator())
-        appMenu.addItem(withTitle: "退出 Claude Guard",
+        appMenu.addItem(withTitle: "退出 Route Guard",
                         action: #selector(NSApplication.terminate(_:)),
                         keyEquivalent: "q")
         appItem.submenu = appMenu
@@ -177,7 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Claude Guard"
+        window.title = "Route Guard"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
