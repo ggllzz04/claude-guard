@@ -39,7 +39,7 @@ public struct NodeResolution: Equatable, Sendable {
 }
 
 public enum RuleAuditor {
-    public static let groupName = "🤖 AI"
+    public static let groupName = GuardSettings.defaultProxyGroup
 
     public static func normalizeType(_ raw: String) -> String {
         switch raw.lowercased() {
@@ -106,11 +106,12 @@ public enum RuleAuditor {
 
     public static func audit(rules: [RuleInfo],
                              proxies: [String: ProxyInfo],
+                             group: String = groupName,
                              approvedLeaf: String? = nil,
                              domains: [String] = ClaudeDomainCatalog.auditDomains) -> [RuleAuditResult] {
         let aiLeaf: String? = {
             if let approvedLeaf, !approvedLeaf.isEmpty { return approvedLeaf }
-            return resolveLeaf(groupName, proxies: proxies)?.leaf
+            return resolveLeaf(group, proxies: proxies)?.leaf
         }()
 
         // 红色只给“会直连”（可能暴露真实 IP）；走了别的节点、无法证明、被拒绝都只提示。
@@ -147,7 +148,7 @@ public enum RuleAuditor {
             }
 
             let sameLeaf = aiLeaf != nil && resolved.leaf == aiLeaf
-            let explicit = proxy == groupName || proxy == aiLeaf
+            let explicit = proxy == group || proxy == aiLeaf
             let status: Severity = sameLeaf && explicit ? .ok : .warning
             let note: String
             if status == .ok {

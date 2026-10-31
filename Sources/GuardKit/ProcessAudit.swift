@@ -166,6 +166,7 @@ public final class UnmatchedSocketTracker {
 public enum ProcessAuditor {
     public static func audit(processes: [ClaudeProcessInfo],
                              connections: [ConnectionInfo],
+                             group: String = RuleAuditor.groupName,
                              approvedLeaf: String?,
                              mode: AuditMode,
                              unmatched: UnmatchedSocketTracker? = nil) -> [TrafficFinding] {
@@ -232,7 +233,7 @@ public enum ProcessAuditor {
                     .filter { !$0.isEmpty }
                     .joined(separator: " ")
 
-                let (verdict, note) = classifyDestination(host: host, remote: remoteText, chains: chains,
+                let (verdict, note) = classifyDestination(host: host, remote: remoteText, chains: chains, group: group,
                                                          approvedLeaf: approvedLeaf, mode: mode,
                                                          direct: direct, domesticRule: ruleIsCN(connection))
 
@@ -262,9 +263,10 @@ public enum ProcessAuditor {
     }
 
     public static func classifyDestination(host: String, remote: String, chains: [String],
+                                           group: String = RuleAuditor.groupName,
                                            approvedLeaf: String?, mode: AuditMode, direct: Bool,
                                            domesticRule: Bool = false) -> (verdict: Verdict, note: String) {
-        let ai = chains.contains(RuleAuditor.groupName) &&
+        let ai = chains.contains(group) &&
             (approvedLeaf?.isEmpty != false || chains.contains(approvedLeaf!))
         if ClaudeDomainCatalog.isClaudeOrTelemetry(host) && !ai {
             return (.violation, "Claude 流量没有走 AI 节点")

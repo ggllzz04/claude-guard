@@ -73,6 +73,8 @@ with tempfile.TemporaryDirectory(prefix='cg-polling-', dir='/private/tmp') as te
                      'tun': {'enable': True, 'device': device, 'auto-route': True, 'inet4-address': [address + '/30']},
                      'sniffer': {'enable': True}},
         '/proxies': {'proxies': {'🤖 AI': {'type': 'Selector', 'now': 'Approved', 'all': ['Approved']},
+                                'Custom Group 🌐': {'type': 'Selector', 'now': 'Approved', 'all': ['Approved']},
+                                'Automatic': {'type': 'URLTest', 'now': 'Approved', 'all': ['Approved']},
                                 'Approved': {'type': 'AnyTLS'}, 'DIRECT': {'type': 'Direct'}}},
         '/rules': {'rules': [{'type': 'Match', 'payload': '', 'proxy': '🤖 AI'}]},
         '/version': {'version': 'fixture'},
@@ -147,6 +149,10 @@ with tempfile.TemporaryDirectory(prefix='cg-polling-', dir='/private/tmp') as te
     mock = temp / 'GuardMock'
     shutil.copy2(BIN / 'GuardMock', mock)
     env = {**os.environ, 'CLAUDE_GUARD_TEST_MOCK': str(mock), 'CLAUDE_GUARD_CLASH_SOCKET': str(temp / 'api.sock')}
+    group_test = subprocess.run([str(BIN / 'GuardBench'), '--group-fixture', str(temp / 'group-settings')],
+                                env=env, capture_output=True, text=True, timeout=15)
+    check(group_test.returncode == 0, 'Custom group switch, validation and persistence',
+          output=group_test.stdout, error=group_test.stderr)
     snapshots = []
     arrivals = []
     host = subprocess.Popen([str(BIN / 'GuardBench'), str(conf)], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -171,8 +177,9 @@ with tempfile.TemporaryDirectory(prefix='cg-polling-', dir='/private/tmp') as te
         raise TimeoutError(json.dumps(snapshots[-1] if snapshots else {}, ensure_ascii=False))
 
     def healthy():
+        previous_count = len(snapshots)
         state.update(fault='healthy')
-        wait(lambda s: not s.get('lastError') and not any(c['severity'] == 'critical' for c in s['checks']) and
+        wait(lambda s: len(snapshots) > previous_count and not s.get('lastError') and not any(c['severity'] == 'critical' for c in s['checks']) and
              any(c['id'] == 'rules' for c in s['checks']))
 
     children = []
@@ -225,7 +232,14 @@ with tempfile.TemporaryDirectory(prefix='cg-polling-', dir='/private/tmp') as te
             started = time.monotonic()
             state.update(fault=fault)
             managed.wait(timeout=limit)
-            check(True, f'Confirmed {fault} still closes promptly', ms=round((time.monotonic()-started)*1000, 1))
+            closed_ms = round((time.monotonic()-started)*1000, 1)
+            # A process can exit before the monitoring round publishes its snapshot.
+            # Observe the injected fault before restoring it, or a previous healthy
+            # snapshot can wrongly count as recovery and contaminate the next case.
+            check_id = {'tun-off': 'tun', 'mode-global': 'mode',
+                        'ai-direct': 'aiGroup', 'rules-direct': 'rules'}[fault]
+            wait(lambda s: any(c['id'] == check_id and c['severity'] == 'critical' for c in s['checks']))
+            check(True, f'Confirmed {fault} still closes promptly', ms=closed_ms)
             healthy()
         managed = child()
         state.update(fault='stall')

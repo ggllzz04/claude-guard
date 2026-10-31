@@ -119,7 +119,7 @@ public struct NodeInfo: Codable, Equatable, Sendable {
     public var approved: Bool
     public var dialerProxy: String?
 
-    public init(group: String = "🤖 AI", name: String = "", type: String = "", delay: Int = 0,
+    public init(group: String = GuardSettings.defaultProxyGroup, name: String = "", type: String = "", delay: Int = 0,
                 isLeaf: Bool = false, chain: [String] = [], fingerprint: String? = nil,
                 approved: Bool = false, dialerProxy: String? = nil) {
         self.group = group
@@ -257,6 +257,8 @@ public struct GuardEvent: Identifiable, Codable, Equatable, Sendable {
 // MARK: - Settings
 
 public struct GuardSettings: Codable, Equatable, Sendable {
+    public static let defaultProxyGroup = "🤖 AI"
+    public var proxyGroup: String
     public var auditMode: AuditMode
     public var webrtcStrict: Bool
     public var canaryEnabled: Bool
@@ -271,7 +273,8 @@ public struct GuardSettings: Codable, Equatable, Sendable {
     /// 是否审计 / 关闭命令行 Claude Code。它可能配置了第三方 API，默认不管。
     public var manageCode: Bool
 
-    public init(auditMode: AuditMode = .standard,
+    public init(proxyGroup: String = GuardSettings.defaultProxyGroup,
+                auditMode: AuditMode = .standard,
                 webrtcStrict: Bool = false,
                 canaryEnabled: Bool = false,
                 notificationsEnabled: Bool = true,
@@ -282,6 +285,7 @@ public struct GuardSettings: Codable, Equatable, Sendable {
                 enforce: Bool = false,
                 manageDesktop: Bool = true,
                 manageCode: Bool = false) {
+        self.proxyGroup = proxyGroup
         self.auditMode = auditMode
         self.webrtcStrict = webrtcStrict
         self.canaryEnabled = canaryEnabled
@@ -300,6 +304,7 @@ public struct GuardSettings: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = GuardSettings()
+        proxyGroup = (try? c.decodeIfPresent(String.self, forKey: .proxyGroup)) ?? d.proxyGroup
         auditMode = (try? c.decodeIfPresent(AuditMode.self, forKey: .auditMode)) ?? d.auditMode
         webrtcStrict = (try? c.decodeIfPresent(Bool.self, forKey: .webrtcStrict)) ?? d.webrtcStrict
         canaryEnabled = (try? c.decodeIfPresent(Bool.self, forKey: .canaryEnabled)) ?? d.canaryEnabled
@@ -320,7 +325,44 @@ public struct GuardSettings: Codable, Equatable, Sendable {
         }
     }
 
+    /// 策略组切换必须使用可信的 Selector 列表，且不能继承旧组的批准或保护状态。
+    func validatedUpdate(replacing current: GuardSettings, selectorGroups: [String]?,
+                         mode: DaemonMode) throws -> GuardSettings {
+        guard !proxyGroup.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw SettingsError.emptyProxyGroup
+        }
+        var value = self
+        value.pollInterval = min(max(value.pollInterval, 0.25), 10)
+        value.approvedNodeName = current.approvedNodeName
+        value.approvedNodeType = current.approvedNodeType
+        value.approvedFingerprint = current.approvedFingerprint
+        if proxyGroup != current.proxyGroup {
+            guard let selectorGroups else { throw SettingsError.proxyGroupsUnavailable }
+            guard selectorGroups.contains(proxyGroup) else { throw SettingsError.invalidProxyGroup(proxyGroup) }
+            value.enforce = false
+            value.approvedNodeName = ""
+            value.approvedNodeType = ""
+            value.approvedFingerprint = nil
+        }
+        if mode != .root { value.enforce = false }
+        return value
+    }
+
     public static let `default` = GuardSettings()
+}
+
+public enum SettingsError: LocalizedError {
+    case emptyProxyGroup
+    case proxyGroupsUnavailable
+    case invalidProxyGroup(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .emptyProxyGroup: return "策略组名称不能为空"
+        case .proxyGroupsUnavailable: return "暂时无法确认 Selector 列表，请等待 Clash 状态恢复后再应用"
+        case .invalidProxyGroup(let name): return "找不到 Selector 策略组：\(name)"
+        }
+    }
 }
 
 // MARK: - Snapshot
@@ -335,6 +377,8 @@ public struct Snapshot: Codable, Equatable, Sendable {
     public var findings: [TrafficFinding]
     public var events: [GuardEvent]
     public var settings: GuardSettings
+    /// nil 表示当前没有可信的策略组列表，也兼容旧版守护快照。
+    public var selectorGroups: [String]?
     public var clashVersion: String?
     public var daemonMode: DaemonMode
     public var lastError: String?
@@ -366,6 +410,7 @@ public struct Snapshot: Codable, Equatable, Sendable {
                 findings: [TrafficFinding] = [],
                 events: [GuardEvent] = [],
                 settings: GuardSettings = .default,
+                selectorGroups: [String]? = nil,
                 clashVersion: String? = nil,
                 daemonMode: DaemonMode = .readOnly,
                 lastError: String? = nil,
@@ -379,6 +424,7 @@ public struct Snapshot: Codable, Equatable, Sendable {
         self.findings = findings
         self.events = events
         self.settings = settings
+        self.selectorGroups = selectorGroups
         self.clashVersion = clashVersion
         self.daemonMode = daemonMode
         self.lastError = lastError

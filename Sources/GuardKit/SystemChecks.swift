@@ -364,7 +364,7 @@ public enum SystemProbe {
     }
 
     /// 经 Clash 混合端口请求 Cloudflare trace，拿到出口 IP 和国家。
-    /// static.cloudflareinsights.com 在 Clash 规则里显式指向 🤖 AI，探测不访问任何 Claude 服务。
+    /// static.cloudflareinsights.com 在 Clash 规则里显式指向用户选定的策略组，探测不访问任何 Claude 服务。
     /// 失败重试一次；仍失败返回 nil。
     public static func egressProbe(proxyPort: Int) -> (ip: String, country: String)? {
         guard proxyPort > 0 else { return nil }

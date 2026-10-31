@@ -28,7 +28,7 @@ LaunchDaemon 以 root 运行；IPC socket 限制为当前控制台用户可访�
 
 ## 规则与节点
 
-`RuleAuditor` 检查 Claude 与常见遥测域名的首匹配规则，并递归解析策略组的实际叶子节点。不可静态展开的规则显示提示；最终直连属于关键风险。`🤖 AI` 必须为 Selector，使用具体节点，不允许 dialer-proxy。
+`RuleAuditor` 检查 Claude 与常见遥测域名的首匹配规则，并递归解析策略组的实际叶子节点。不可静态展开的规则显示提示；最终直连属于关键风险。检查目标来自 `GuardSettings.proxyGroup`，默认 `🤖 AI`；所选组必须为 Selector，使用具体节点，不允许 dialer-proxy。快照提供可信的 Selector 列表供界面选择；切换时与检查轮次共用锁，暂停保护、清除旧批准并使旧出口探测缓存失效。规则、连接审计和可选出口探测均使用所选组名。
 
 `ProfileFingerprint` 从当前用户的 Clash Verge YAML 提取对应节点块并计算 SHA-256。只持久化哈希，不写出 server/password 等配置字段。
 

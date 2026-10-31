@@ -95,10 +95,13 @@ struct GuardDaemonMain {
                       let settings = try? GuardJSON.decoder.decode(GuardSettings.self, from: data) else {
                     return IPCResponse(id: request.id, ok: false, error: "settings JSON 无效")
                 }
-                let snapshot = service.updateSettings(settings)
-                // 旧代码只在启动时读一次轮询间隔，改了“检查频率”要重启守护才生效。
-                schedule(snapshot.settings.pollInterval, delay: snapshot.settings.pollInterval)
-                return IPCResponse(id: request.id, snapshot: snapshot, settings: snapshot.settings)
+                do {
+                    let snapshot = try service.updateSettings(settings)
+                    schedule(snapshot.settings.pollInterval, delay: snapshot.settings.pollInterval)
+                    return IPCResponse(id: request.id, snapshot: snapshot, settings: snapshot.settings)
+                } catch {
+                    return IPCResponse(id: request.id, ok: false, error: error.localizedDescription)
+                }
             case "events":
                 return IPCResponse(id: request.id, snapshot: service.currentSnapshot(), events: service.recentEvents())
             case "findings":

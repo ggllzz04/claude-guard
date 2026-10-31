@@ -54,6 +54,7 @@ public final class GuardService {
     private var egressResult: EgressResult?
     private var egressRunning = false
     private var egressForce = false
+    private var egressGeneration = 0
     private let egressInterval: TimeInterval = 300
 
     private struct EgressResult {
@@ -61,6 +62,7 @@ public final class GuardService {
         var ip: String?
         var country: String?
         var leaf: String
+        var group: String
         var error: String?
     }
 
@@ -226,17 +228,17 @@ public final class GuardService {
 
         if proxiesRead.value != nil {
             let groupIcon = "point.3.connected.trianglepath.dotted"
-            let resolution = RuleAuditor.resolveNode(proxies: proxies)
+            let resolution = RuleAuditor.resolveNode(proxies: proxies, group: settings.proxyGroup)
             let leafInfo = proxies[resolution.leafName]
             // 红：AI 分组不存在，或者最终落到直连 / 拒绝。分组类型、嵌套、指纹这些都只提示。
-            if proxies[RuleAuditor.groupName] == nil {
-                checks.append(check("aiGroup", "AI 分组", "找不到 \(RuleAuditor.groupName)", .critical, groupIcon))
+            if proxies[settings.proxyGroup] == nil {
+                checks.append(check("aiGroup", "AI 分组", "找不到 \(settings.proxyGroup)", .critical, groupIcon))
             } else if leafInfo?.isDirectLike == true {
                 checks.append(check("aiGroup", "AI 分组", "最终落到直连：\(resolution.chain.joined(separator: " → "))", .critical, groupIcon))
             } else if leafInfo?.isReject == true {
                 checks.append(check("aiGroup", "AI 分组", "最终落到拒绝：\(resolution.chain.joined(separator: " → "))", .critical, groupIcon))
             } else {
-                let group = proxies[RuleAuditor.groupName]!
+                let group = proxies[settings.proxyGroup]!
                 checks.append(check("aiGroup", "AI 分组", "\(group.type) · \(group.now ?? "未选择")",
                                     group.type == "Selector" ? .ok : .warning, groupIcon))
             }
@@ -247,7 +249,7 @@ public final class GuardService {
                 settings.approvedFingerprint != nil &&
                 settings.approvedFingerprint == fingerprint
             node = NodeInfo(
-                group: RuleAuditor.groupName,
+                group: settings.proxyGroup,
                 name: resolution.leafName,
                 type: resolution.leafType,
                 delay: resolution.delay,
@@ -277,7 +279,7 @@ public final class GuardService {
             }
 
             if rulesRead.value != nil {
-                let audit = RuleAuditor.audit(rules: rules, proxies: proxies, approvedLeaf: node?.name)
+                let audit = RuleAuditor.audit(rules: rules, proxies: proxies, group: settings.proxyGroup, approvedLeaf: node?.name)
                 let directRules = audit.filter { $0.status == .critical }
                 let softRules = audit.filter { $0.status == .warning }
                 if !directRules.isEmpty {
@@ -307,18 +309,18 @@ public final class GuardService {
         var egressIP: String?
         if settings.canaryEnabled {
             let probeRule = RuleAuditor.firstMatch(domain: SystemProbe.egressProbeHost, rules: rules)?.0
-            let probeViaAI = clashOK && rulesRead.severity == .ok && proxiesRead.severity == .ok && probeRule?.proxy == RuleAuditor.groupName
+            let probeViaAI = clashOK && rulesRead.severity == .ok && proxiesRead.severity == .ok && probeRule?.proxy == settings.proxyGroup
             let port = config?.mixedPort ?? 0
             if !clashOK {
                 checks.append(check("egress", "出口", "连不上 Clash，暂停探测", .warning, "location.fill"))
             } else if !probeViaAI {
-                // 探测流量只能走 🤖 AI；没有对应规则时不发请求，免得探测本身走了别的出口。
+                // 探测流量只能走用户选定的策略组；没有对应规则时不发请求，免得探测本身走了别的出口。
                 checks.append(check("egress", "出口",
                                     "\(SystemProbe.egressProbeHost) 没有显式走 AI，已跳过探测",
                                     .warning, "location.fill"))
             } else {
-                scheduleEgressProbe(port: port, leaf: node?.name ?? "")
-                egressIP = egressCheck(leaf: node?.name ?? "", into: &checks)
+                scheduleEgressProbe(port: port, leaf: node?.name ?? "", group: settings.proxyGroup)
+                egressIP = egressCheck(leaf: node?.name ?? "", group: settings.proxyGroup, into: &checks)
             }
         }
 
@@ -390,6 +392,7 @@ public final class GuardService {
             findings = ProcessAuditor.audit(
                 processes: processes,
                 connections: connections,
+                group: settings.proxyGroup,
                 approvedLeaf: node?.name,
                 mode: settings.auditMode,
                 unmatched: unmatchedSockets
@@ -497,6 +500,7 @@ public final class GuardService {
             findings: findings,
             events: events,
             settings: settings,
+            selectorGroups: proxiesRead.severity == .ok ? Self.selectorGroups(in: proxies) : nil,
             clashVersion: clashVersion,
             daemonMode: mode,
             lastError: lastError,
@@ -529,51 +533,67 @@ public final class GuardService {
     }
 
     public func approveCurrentNode() -> Snapshot {
-        let snapshot = currentSnapshot()
-        guard let node = snapshot.node, !node.name.isEmpty else {
-            record(.warning, "无法批准节点", "当前没有可用的 AI 节点")
-            return snapshot
+        _ = currentSnapshot()
+        workLock.withLock {
+            let snapshot = stateLock.withLock { lastSnapshot }
+            guard let node = snapshot?.node, node.group == currentSettings.proxyGroup,
+                  node.isLeaf, !node.name.isEmpty else {
+                record(.warning, "无法批准节点", "当前没有可用的 AI 节点，请等待所选策略组状态刷新")
+                return
+            }
+            guard let fingerprint = node.fingerprint, !fingerprint.isEmpty else {
+                record(.warning, "无法批准节点", "无法读取节点配置指纹")
+                return
+            }
+            let value = stateLock.withLock {
+                settings.approvedNodeName = node.name
+                settings.approvedNodeType = node.type
+                settings.approvedFingerprint = fingerprint
+                return settings
+            }
+            saveSettings(value)
+            record(.ok, "已批准 AI 节点", "\(node.group) · \(node.name) · \(node.type)")
         }
-        guard let fingerprint = node.fingerprint, !fingerprint.isEmpty else {
-            record(.warning, "无法批准节点", "无法读取节点配置指纹")
-            return snapshot
-        }
-        stateLock.lock()
-        settings.approvedNodeName = node.name
-        settings.approvedNodeType = node.type
-        settings.approvedFingerprint = fingerprint
-        let value = settings
-        stateLock.unlock()
-        saveSettings(value)
-        record(.ok, "已批准 AI 节点", "\(node.name) · \(node.type)")
         return refresh()
     }
 
-    public func updateSettings(_ newSettings: GuardSettings) -> Snapshot {
-        var value = newSettings
-        value.pollInterval = min(max(value.pollInterval, 0.25), 10)
-        if mode != .root { value.enforce = false }
-        stateLock.lock()
-        // 节点批准只能走 approve；客户端草稿里的批准字段可能是旧的，不能覆盖。
-        value.approvedNodeName = settings.approvedNodeName
-        value.approvedNodeType = settings.approvedNodeType
-        value.approvedFingerprint = settings.approvedFingerprint
-        let previous = settings
-        settings = value
-        stateLock.unlock()
-        // 设置自动保存，同一个值可能重复提交；没变化就不写文件、不记事件。
-        guard value != previous else { return currentSnapshot() }
-        saveSettings(value)
-        let changes = GuardService.describeChanges(from: previous, to: value)
-        if !changes.isEmpty {
-            record(.ok, "设置已更新", changes.joined(separator: "；"))
+    public func updateSettings(_ newSettings: GuardSettings) throws -> Snapshot {
+        // 与检查和进程保护共用锁，切换组时不会再按旧组执行一轮保护。
+        try workLock.withLock {
+            let previous = currentSettings
+            let reading = proxiesProbe.read()
+            let groups = reading.severity == .ok ? reading.value.map(Self.selectorGroups(in:)) : nil
+            let value = try newSettings.validatedUpdate(replacing: previous, selectorGroups: groups, mode: mode)
+            guard value != previous else { return }
+            stateLock.withLock {
+                settings = value
+                if value.proxyGroup != previous.proxyGroup {
+                    egressGeneration += 1
+                    egressResult = nil
+                    egressForce = true
+                }
+            }
+            if value.proxyGroup != previous.proxyGroup {
+                findingFirstSeen = [:]
+                lastFindingKeys = []
+            }
+            saveSettings(value)
+            let changes = GuardService.describeChanges(from: previous, to: value)
+            if !changes.isEmpty { record(.ok, "设置已更新", changes.joined(separator: "；")) }
         }
         return refresh()
+    }
+
+    static func selectorGroups(in proxies: [String: ProxyInfo]) -> [String] {
+        proxies.filter { $0.value.type == "Selector" }.map(\.key).sorted()
     }
 
     static func describeChanges(from old: GuardSettings, to new: GuardSettings) -> [String] {
         func onOff(_ b: Bool) -> String { b ? "开" : "关" }
         var parts: [String] = []
+        if old.proxyGroup != new.proxyGroup {
+            parts.append("策略组 \(old.proxyGroup) → \(new.proxyGroup)；保护已暂停，请重新确认节点")
+        }
         if old.enforce != new.enforce { parts.append("保护 \(onOff(new.enforce))") }
         if old.manageDesktop != new.manageDesktop { parts.append("管理 Claude Desktop \(onOff(new.manageDesktop))") }
         if old.manageCode != new.manageCode { parts.append("管理 Claude Code \(onOff(new.manageCode))") }
@@ -699,34 +719,36 @@ public final class GuardService {
         return checks
     }
 
-    private func scheduleEgressProbe(port: Int, leaf: String) {
+    private func scheduleEgressProbe(port: Int, leaf: String, group: String) {
         stateLock.lock()
         let last = egressResult
-        let due = egressForce || last == nil || last!.leaf != leaf ||
+        let due = egressForce || last == nil || last!.leaf != leaf || last!.group != group ||
             Date().timeIntervalSince(last!.time) >= egressInterval
         guard due, !egressRunning else { stateLock.unlock(); return }
         egressRunning = true
         egressForce = false
+        let generation = egressGeneration
         stateLock.unlock()
 
         egressQueue.async { [weak self] in
             let probe = SystemProbe.egressProbe(proxyPort: port)
-            let result = EgressResult(time: Date(), ip: probe?.ip, country: probe?.country, leaf: leaf,
+            let result = EgressResult(time: Date(), ip: probe?.ip, country: probe?.country, leaf: leaf, group: group,
                                       error: probe == nil ? "探测失败" : nil)
             guard let self else { return }
             self.stateLock.lock()
-            self.egressResult = result
+            // 切换组前已在途的请求不能成为新组的探测结果（含 A → B → A）。
+            if self.egressGeneration == generation { self.egressResult = result }
             self.egressRunning = false
             self.stateLock.unlock()
         }
     }
 
     /// 出口只作提示：IP 在中国、或探测失败都是黄色，不会关闭 Claude。
-    private func egressCheck(leaf: String, into checks: inout [GuardCheck]) -> String? {
+    private func egressCheck(leaf: String, group: String, into checks: inout [GuardCheck]) -> String? {
         stateLock.lock()
         let result = egressResult
         stateLock.unlock()
-        guard let result, result.leaf == leaf else {
+        guard let result, result.leaf == leaf, result.group == group else {
             checks.append(check("egress", "出口", "探测中…", .ok, "location.fill"))
             return nil
         }

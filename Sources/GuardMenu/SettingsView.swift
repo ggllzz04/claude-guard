@@ -12,6 +12,7 @@ import GuardKit
 @MainActor
 final class SettingsAutoSaver: ObservableObject {
     @Published var draft: GuardSettings = .default
+    @Published var proxyGroupInput = GuardSettings.defaultProxyGroup
     @Published private(set) var loaded = false
     @Published private(set) var status: Status = .idle
 
@@ -24,6 +25,7 @@ final class SettingsAutoSaver: ObservableObject {
 
     private weak var state: AppState?
     private var inFlight: GuardSettings?
+    private var observedProxyGroup: String?
     private var debounce: Task<Void, Never>?
 
     func attach(_ state: AppState) {
@@ -35,6 +37,11 @@ final class SettingsAutoSaver: ObservableObject {
     /// 否则会把刚拨的开关弹回旧值。
     func sync(from settings: GuardSettings?) {
         guard let settings else { return }
+        // 轮询只同步已保存的组名，保留用户尚未点“应用”的输入。
+        if observedProxyGroup == nil || proxyGroupInput == observedProxyGroup {
+            proxyGroupInput = settings.proxyGroup
+        }
+        observedProxyGroup = settings.proxyGroup
         if !loaded || (inFlight == nil && debounce == nil) {
             draft = settings
             loaded = true
@@ -56,6 +63,19 @@ final class SettingsAutoSaver: ObservableObject {
                 self?.submit()
             }
         }
+    }
+
+    func applyProxyGroup() {
+        guard loaded, inFlight == nil, state?.snapshot?.selectorGroups != nil,
+              let settings = state?.snapshot?.settings,
+              proxyGroupInput != settings.proxyGroup,
+              !proxyGroupInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        draft.proxyGroup = proxyGroupInput
+        draft.enforce = false
+        draft.approvedNodeName = ""
+        draft.approvedNodeType = ""
+        draft.approvedFingerprint = nil
+        changed()
     }
 
     private func submit() {
@@ -107,7 +127,7 @@ struct SettingsView: View {
                 } else {
                     switch saver.status {
                     case .idle, .saved:
-                        Label("修改后自动保存", systemImage: "checkmark.circle")
+                        Label("选项自动保存；策略组需点应用", systemImage: "checkmark.circle")
                             .foregroundStyle(Theme.tertiary)
                     case .saving:
                         Label("正在保存…", systemImage: "arrow.triangle.2.circlepath")
@@ -129,6 +149,7 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .top)
 
                 VStack(spacing: 16) {
+                    proxyGroupCard
                     nodeCard
                     aboutCard
                 }
@@ -257,6 +278,42 @@ struct SettingsView: View {
         .glassCard(padding: 18, radius: 20)
     }
 
+    private var proxyGroupCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            CardHeader(icon: "point.3.connected.trianglepath.dotted", title: "目标策略组", tint: Theme.teal)
+            LabeledValue(label: "当前", value: saved.proxyGroup)
+            TextField("输入 Selector 名称", text: $saver.proxyGroupInput)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("目标 Selector 策略组名称")
+            Menu("选择已有 Selector") {
+                ForEach(state.snapshot?.selectorGroups ?? [], id: \.self) { name in
+                    Button(name) { saver.proxyGroupInput = name }
+                }
+            }
+            .disabled(state.snapshot?.selectorGroups?.isEmpty != false)
+            if state.snapshot?.selectorGroups == nil {
+                Text("尚未取得 Selector 列表；请等待 Clash 恢复，并确认守护已更新。")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Theme.amber)
+            }
+            ActionButton(title: "应用策略组", icon: "checkmark", tint: Theme.teal, fullWidth: true) {
+                saver.applyProxyGroup()
+            }
+            .disabled(state.snapshot?.selectorGroups == nil || saver.status == .saving || state.pendingCommand != nil ||
+                      saver.proxyGroupInput == saved.proxyGroup ||
+                      saver.proxyGroupInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Text("组名需与 Clash 中的 Selector 完全一致。切换会暂停保护、清除节点确认；检查新节点后再按需开启保护。")
+                .font(.system(size: 10.5))
+                .foregroundStyle(Theme.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("此处只设置检查目标；分流规则需使用同一组名。")
+                .font(.system(size: 10.5))
+                .foregroundStyle(Theme.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .glassCard(padding: 16, radius: 20)
+    }
+
     private var nodeCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             CardHeader(icon: "server.rack", title: "AI 节点", tint: Theme.teal) {
@@ -266,6 +323,7 @@ struct SettingsView: View {
             }
             if let node = state.snapshot?.node, !node.name.isEmpty {
                 VStack(spacing: 7) {
+                    LabeledValue(label: "策略组", value: node.group)
                     LabeledValue(label: "节点", value: node.name)
                     LabeledValue(label: "已确认", value: saved.approvedNodeName.isEmpty ? "—" : saved.approvedNodeName)
                     LabeledValue(label: "指纹", value: node.fingerprint.map { String($0.prefix(16)) + "…" } ?? "无", mono: true)

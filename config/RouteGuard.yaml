@@ -1,10 +1,11 @@
 # Route Guard · Clash Verge Merge 配置
 #
 # 在 Clash Verge 中新建/导入一个 Merge 类型配置，文件名 RouteGuard.yaml，
-# 然后右键启用一次。订阅更新不会覆盖它。
+# 将下方所有规则中的 🤖 AI 改为你的实际 Selector 名称，并在 Route Guard
+# 的「设置 → 目标策略组」应用同一名称，然后右键启用 Merge。订阅更新不会覆盖它。
 #
 # 作用：
-#   1. 把 Claude / Anthropic / 常见遥测域名放到规则最前面，固定走 🤖 AI
+#   1. 把 Claude / Anthropic / 常见遥测域名放到规则最前面，走指定 Selector（此模板默认 🤖 AI）
 #   2. 关闭局域网代理，只监听 127.0.0.1
 #   3. 开启 TLS/QUIC SNI 嗅探
 #
@@ -44,6 +45,9 @@ prepend-rules:
   - DOMAIN-SUFFIX,mixpanel.com,🤖 AI
   - DOMAIN-SUFFIX,google-analytics.com,🤖 AI
   - DOMAIN-SUFFIX,googletagmanager.com,🤖 AI
+
+  # 可选出口探测：开启 Route Guard 出口探测前，取消下一条注释并使用同一组名
+  # - DOMAIN,static.cloudflareinsights.com,🤖 AI
 
   # Anthropic IP 段
   - IP-CIDR,160.79.104.0/21,🤖 AI,no-resolve

@@ -1,6 +1,12 @@
 import Foundation
 import GuardKit
 
+func require(_ condition: Bool, _ message: String) {
+    if !condition { fputs("FAIL: \(message)\n", stderr); exit(1) }
+    print("PASS: \(message)")
+}
+
+
 if CommandLine.arguments.count == 5 && CommandLine.arguments[1] == "--api-check" {
     do {
         let path = CommandLine.arguments[2]
@@ -20,10 +26,6 @@ if CommandLine.arguments.count == 5 && CommandLine.arguments[1] == "--api-check"
 }
 
 if CommandLine.arguments.contains("--self-test") {
-    func require(_ condition: Bool, _ message: String) {
-        if !condition { fputs("FAIL: \(message)\n", stderr); exit(1) }
-        print("PASS: \(message)")
-    }
     require(ClaudeDomainCatalog.isClaudeOrTelemetry("api.anthropic.com"), "Claude domain")
     require(!ClaudeDomainCatalog.isClaudeOrTelemetry("anthropic.com.attacker.test"), "Domain suffix boundary")
     require(ClaudeLocator.classify(path: "/Applications/Claude.app/Contents/MacOS/Claude", argv: { "" }) == .desktop, "Desktop scope")
@@ -109,10 +111,6 @@ if CommandLine.arguments.contains("--self-test") {
 }
 
 if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--safety-fixture" {
-    func require(_ condition: Bool, _ message: String) {
-        if !condition { fputs("FAIL: \(message)\n", stderr); exit(1) }
-        print("PASS: \(message)")
-    }
     let folder = URL(fileURLWithPath: CommandLine.arguments[2])
     let mock = folder.appendingPathComponent("GuardMock")
     let managed = Process()
@@ -126,17 +124,17 @@ if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--safety-fix
     var prefs = GuardSettings.default
     prefs.enforce = true
     prefs.manageDesktop = false
-    let unmanaged = guardService.updateSettings(prefs)
+    let unmanaged = try guardService.updateSettings(prefs)
     require(unmanaged.state == .attention && managed.isRunning, "Initial missing API is uncertainty, not a confirmed outage")
     prefs.manageDesktop = true
     prefs.enforce = false
-    _ = guardService.updateSettings(prefs)
+    _ = try guardService.updateSettings(prefs)
     require(managed.isRunning, "Protection off never kills")
     let preview = GuardService(mode: .test, configDir: folder.path)
     prefs.enforce = true
-    let test = preview.updateSettings(prefs)
+    let test = try preview.updateSettings(prefs)
     require(!test.settings.enforce && managed.isRunning, "Test daemon cannot enforce")
-    var closed = guardService.updateSettings(prefs)
+    var closed = try guardService.updateSettings(prefs)
     require(managed.isRunning && closed.state != .blocked, "Enabling protection does not kill on a transient read failure")
     let deadline = ProcessInfo.processInfo.systemUptime + 19
     while managed.isRunning && ProcessInfo.processInfo.systemUptime < deadline {
@@ -151,11 +149,57 @@ if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--safety-fix
 }
 
 // 仅测试宿主：必须显式指定 mock 可执行文件和独立配置目录。
-guard CommandLine.arguments.count == 2,
-      let mock = ProcessInfo.processInfo.environment["CLAUDE_GUARD_TEST_MOCK"],
+guard let mock = ProcessInfo.processInfo.environment["CLAUDE_GUARD_TEST_MOCK"],
       mock.hasPrefix("/private/tmp/") || mock.hasPrefix("/tmp/"),
       let socket = ProcessInfo.processInfo.environment["CLAUDE_GUARD_CLASH_SOCKET"],
       socket.hasPrefix("/tmp/") || socket.hasPrefix("/private/tmp/") else { exit(64) }
+if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--group-fixture" {
+    let folder = URL(fileURLWithPath: CommandLine.arguments[2]).resolvingSymlinksInPath()
+    guard folder.path.hasPrefix("/private/tmp/") else { exit(64) }
+    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    let original = GuardSettings(approvedNodeName: "Approved", approvedNodeType: "AnyTLS",
+                                 approvedFingerprint: "fixture-hash", enforce: true)
+    let settingsURL = folder.appendingPathComponent("settings.json")
+    try GuardJSON.encoder.encode(original).write(to: settingsURL)
+    let service = GuardService(mode: .root, configDir: folder.path)
+    let custom = "Custom Group 🌐"
+    var snapshot = service.refresh()
+    let deadline = ProcessInfo.processInfo.systemUptime + 5
+    while (snapshot.selectorGroups == nil || !snapshot.checks.contains { $0.id == "rules" }) &&
+          ProcessInfo.processInfo.systemUptime < deadline {
+        Thread.sleep(forTimeInterval: 0.05)
+        snapshot = service.refresh()
+    }
+    require(snapshot.selectorGroups?.contains(custom) == true, "API exposes custom Selector choice")
+    require(snapshot.selectorGroups?.contains("Automatic") == false, "API excludes automatic groups")
+    for name in ["", "Missing", "Automatic", "Approved"] {
+        var invalid = original
+        invalid.proxyGroup = name
+        do {
+            _ = try service.updateSettings(invalid)
+            require(false, "Invalid target must fail: \(name)")
+        } catch is SettingsError {}
+        require(service.currentSettings == original, "Rejected update leaves active settings intact")
+        let persisted = try GuardJSON.decoder.decode(GuardSettings.self, from: Data(contentsOf: settingsURL))
+        require(persisted == original, "Rejected update leaves persisted settings intact")
+    }
+    var proposed = original
+    proposed.proxyGroup = custom
+    snapshot = try service.updateSettings(proposed)
+    require(snapshot.settings.proxyGroup == custom && snapshot.node?.group == custom,
+            "Applied group reaches settings and node resolution")
+    require(snapshot.node?.name == "Approved" && snapshot.node?.approved == false,
+            "Shared leaf does not inherit approval from the old group")
+    require(!snapshot.settings.enforce && snapshot.settings.approvedNodeName.isEmpty &&
+            snapshot.settings.approvedFingerprint == nil, "Switch pauses protection and clears approval")
+    require(snapshot.checks.contains { $0.id == "rules" && $0.severity == .warning },
+            "Rules still bound to the old group prompt reconfiguration")
+    let reloaded = GuardService(mode: .test, configDir: folder.path)
+    require(reloaded.currentSettings.proxyGroup == custom && !reloaded.currentSettings.enforce,
+            "Restart preserves the custom group and observation mode")
+    exit(0)
+}
+guard CommandLine.arguments.count == 2 else { exit(64) }
 let service = GuardService(mode: .root, configDir: CommandLine.arguments[1])
 while true {
     let start = ProcessInfo.processInfo.systemUptime

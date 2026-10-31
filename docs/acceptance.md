@@ -10,9 +10,9 @@ BIN="$(swift build -c release --show-bin-path)"
 python3 scripts/regression-polling.py
 ```
 
-- Swift Testing：域名边界、首匹配规则、默认设置、旧设置兼容、告警优先级、失败宽限期和不同观测去抖。
+- Swift Testing：域名边界、首匹配规则、默认设置、自定义策略组与旧设置/快照兼容、告警优先级、失败宽限期和不同观测去抖。
 - GuardBench 自检：进程范围、PID 身份校验、常规外部服务路由，以及仅对临时 mock 进程执行的保护行为。
-- 隔离回归：HTTP 帧、慢读、超时、格式异常、恢复、长期不可读、确认 TUN / 模式 / 规则故障和本地端口失败。
+- 隔离回归：自定义组切换、无效目标拒绝、暂停保护与批准清除、设置持久化，以及 HTTP 帧、慢读、超时、格式异常、恢复、长期不可读、确认 TUN / 模式 / 规则故障和本地端口失败。
 
 回归结果位于 `build/polling-regression.json`，包含本机观测数据，禁止直接上传。
 
