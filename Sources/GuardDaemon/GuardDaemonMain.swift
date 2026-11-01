@@ -67,7 +67,7 @@ struct GuardDaemonMain {
             exit(snapshot.state == .blocked ? 2 : 0)
         }
 
-        let queue = DispatchQueue(label: "com.local.claudeguard.daemon.timer")
+        let queue = DispatchQueue(label: "com.local.claudeguard.daemon.timer", qos: .userInitiated)
         let timer = DispatchSource.makeTimerSource(queue: queue)
         func schedule(_ pollInterval: Double, delay: Double) {
             let interval = max(0.25, pollInterval)

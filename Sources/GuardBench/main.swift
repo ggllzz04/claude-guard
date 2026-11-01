@@ -37,8 +37,8 @@ if CommandLine.arguments.contains("--self-test") {
     reads.failed(at: 100)
     reads.failed(at: 101)
     reads.failed(at: 102)
-    require(reads.severity(at: 114.9) == .warning, "Transient read failures stay yellow throughout the grace period")
-    require(reads.severity(at: 115) == .critical, "Persistent blindness requires both duration and repeated failures")
+    require(reads.severity(at: 114.9) == .warning, "Transient read failures stay yellow")
+    require(reads.severity(at: 3600) == .warning, "Elapsed time never turns unreadable state into confirmed danger")
     reads.succeeded()
     reads.failed(at: 200)
     require(reads.severity(at: 300) == .warning, "A single failure after recovery cannot inherit an old critical state")
@@ -134,17 +134,18 @@ if CommandLine.arguments.count == 3 && CommandLine.arguments[1] == "--safety-fix
     prefs.enforce = true
     let test = try preview.updateSettings(prefs)
     require(!test.settings.enforce && managed.isRunning, "Test daemon cannot enforce")
-    var closed = try guardService.updateSettings(prefs)
-    require(managed.isRunning && closed.state != .blocked, "Enabling protection does not kill on a transient read failure")
+    var snapshot = try guardService.updateSettings(prefs)
+    require(managed.isRunning && snapshot.state != .blocked, "Enabling protection does not kill on a transient read failure")
     let deadline = ProcessInfo.processInfo.systemUptime + 19
-    while managed.isRunning && ProcessInfo.processInfo.systemUptime < deadline {
+    while ProcessInfo.processInfo.systemUptime < deadline {
         Thread.sleep(forTimeInterval: 0.1)
-        closed = guardService.refresh()
+        snapshot = guardService.refresh()
     }
-    if managed.isRunning { managed.terminate(); require(false, "Persistent unreadable state must eventually enforce") }
+    require(managed.isRunning && snapshot.state == .attention,
+            "Persistent unreadable state remains yellow without killing the mock")
+    require(!snapshot.events.contains { $0.title.contains("关闭了") }, "Read errors never create a close event")
+    managed.terminate()
     managed.waitUntilExit()
-    require(closed.events.contains { $0.title.contains("不满足要求，关闭了") }, "Close activity states reason and action")
-    require(closed.processes.isEmpty, "Managed mock really closed on critical risk")
     exit(0)
 }
 

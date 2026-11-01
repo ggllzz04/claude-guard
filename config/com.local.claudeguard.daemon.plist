@@ -16,7 +16,8 @@
     <key>ThrottleInterval</key>
     <integer>5</integer>
     <key>ProcessType</key>
-    <string>Background</string>
+    <!-- Time-sensitive monitoring uses explicit QoS; avoid the Background resource policy. -->
+    <string>Standard</string>
     <key>StandardOutPath</key>
     <string>/var/log/claude-guard.out.log</string>
     <key>StandardErrorPath</key>

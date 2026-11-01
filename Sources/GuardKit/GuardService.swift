@@ -20,8 +20,6 @@ public final class GuardService {
     private var findingFirstSeen: [String: Date] = [:]
     private let unmatchedSockets = UnmatchedSocketTracker()
     private var localRisks = RiskDebouncer()
-    private var portReadFailures = ReadFailureTracker()
-    private var interfaceReadFailures = ReadFailureTracker()
     private var fingerprintCache: (leaf: String, modified: Date, size: UInt64, value: String?)?
     private let configProbe = PollingProbe("configs", interval: 0.5) {
         try ClashClient(socketPath: GuardPaths.clashSocket(), timeout: 2).configs()
@@ -156,14 +154,12 @@ public final class GuardService {
         if let config, let port = [config.mixedPort, config.httpPort, config.socksPort].first(where: { $0 > 0 }) {
             do {
                 let listening = try SystemProbe.proxyPortListening(port)
-                portReadFailures.succeeded()
                 checks.append(check("proxyPort", "代理入口", "127.0.0.1:\(port) · \(listening ? "监听中" : "拒绝连接，复核中")",
                                     localRisks.severity("proxyPort", failed: !listening), "network"))
             } catch {
-                let now = ProcessInfo.processInfo.systemUptime
-                portReadFailures.failed(at: now)
+                _ = localRisks.unavailable("proxyPort")
                 checks.append(check("proxyPort", "代理入口", "读取失败：\(error.localizedDescription)，正在重试",
-                                    portReadFailures.severity(at: now), "network"))
+                                    .warning, "network"))
             }
         }
 
@@ -173,23 +169,22 @@ public final class GuardService {
         if let config {
             let ruleMode = config.mode.lowercased() == "rule"
             checks.append(check("mode", "规则模式", ruleMode ? "rule" : "\(config.mode)（不是 rule）",
-                                ruleMode ? .ok : .critical, "slider.horizontal.3"))
+                                configRead.confirmedSeverity(ruleMode ? .ok : .critical), "slider.horizontal.3"))
 
             let device = config.tunDevice
             var tunAddress: String?
             var interfaceError: String?
             do {
                 tunAddress = try SystemProbe.checkedInterfaceIPv4(name: device)
-                interfaceReadFailures.succeeded()
             } catch {
                 interfaceError = error.localizedDescription
-                interfaceReadFailures.failed(at: ProcessInfo.processInfo.systemUptime)
             }
             let expectedAddress = config.tunInet4.first.map { String($0.split(separator: "/").first ?? "") }
             let addressOK = tunAddress != nil && (expectedAddress == nil || expectedAddress == tunAddress)
             let tunSeverity: Severity
-            if !config.tunEnabled || !config.autoRoute { tunSeverity = .critical }
-            else if interfaceError != nil { tunSeverity = interfaceReadFailures.severity(at: ProcessInfo.processInfo.systemUptime) }
+            if configRead.severity != .ok { tunSeverity = localRisks.unavailable("tun") }
+            else if !config.tunEnabled || !config.autoRoute { tunSeverity = .critical }
+            else if interfaceError != nil { tunSeverity = localRisks.unavailable("tun") }
             else { tunSeverity = localRisks.severity("tun", failed: !addressOK) }
             let tunDetail: String
             if !config.tunEnabled {
@@ -202,11 +197,13 @@ public final class GuardService {
             checks.append(check("tun", "TUN", tunDetail, tunSeverity, "network"))
 
             if let route = routeRead.value, let observedAt = routeRead.observedAt {
-                let severity = localRisks.severity("routes", failed: device.isEmpty || route != device,
-                                                   observedAt: observedAt)
+                let severity = configRead.severity == .ok && routeRead.severity == .ok
+                    ? localRisks.severity("routes", failed: device.isEmpty || route != device, observedAt: observedAt)
+                    : localRisks.unavailable("routes")
                 checks.append(check("routes", "网络路由", "1.1.1.1 → \(route)",
                                     max(severity, routeRead.severity), "arrow.triangle.branch"))
             } else {
+                _ = localRisks.unavailable("routes")
                 checks.append(check("routes", "网络路由", routeRead.detail, routeRead.severity, "arrow.triangle.branch"))
             }
             if routeRead.severity != .ok, routeRead.value != nil {
@@ -221,6 +218,9 @@ public final class GuardService {
                                 config.snifferEnabled ? "已开启" : "建议开启 SNI 嗅探",
                                 config.snifferEnabled ? .ok : .warning, "eye"))
         } else {
+            _ = localRisks.unavailable("tun")
+            _ = localRisks.unavailable("routes")
+            _ = localRisks.unavailable("proxyPort")
             checks.append(check("tun", "TUN", "等待读取配置，尚未确认关闭", .warning, "network"))
         }
 
@@ -232,11 +232,11 @@ public final class GuardService {
             let leafInfo = proxies[resolution.leafName]
             // 红：AI 分组不存在，或者最终落到直连 / 拒绝。分组类型、嵌套、指纹这些都只提示。
             if proxies[settings.proxyGroup] == nil {
-                checks.append(check("aiGroup", "AI 分组", "找不到 \(settings.proxyGroup)", .critical, groupIcon))
+                checks.append(check("aiGroup", "AI 分组", "找不到 \(settings.proxyGroup)", proxiesRead.confirmedSeverity(.critical), groupIcon))
             } else if leafInfo?.isDirectLike == true {
-                checks.append(check("aiGroup", "AI 分组", "最终落到直连：\(resolution.chain.joined(separator: " → "))", .critical, groupIcon))
+                checks.append(check("aiGroup", "AI 分组", "最终落到直连：\(resolution.chain.joined(separator: " → "))", proxiesRead.confirmedSeverity(.critical), groupIcon))
             } else if leafInfo?.isReject == true {
-                checks.append(check("aiGroup", "AI 分组", "最终落到拒绝：\(resolution.chain.joined(separator: " → "))", .critical, groupIcon))
+                checks.append(check("aiGroup", "AI 分组", "最终落到拒绝：\(resolution.chain.joined(separator: " → "))", proxiesRead.confirmedSeverity(.critical), groupIcon))
             } else {
                 let group = proxies[settings.proxyGroup]!
                 checks.append(check("aiGroup", "AI 分组", "\(group.type) · \(group.now ?? "未选择")",
@@ -286,7 +286,7 @@ public final class GuardService {
                     let examples = directRules.prefix(2).map(\.domain).joined(separator: "、")
                     checks.append(check("rules", "分流规则",
                                         "\(directRules.count) 个 Claude 域名会直连：\(examples)",
-                                        .critical, "list.bullet.rectangle"))
+                                        rulesRead.confirmedSeverity(proxiesRead.confirmedSeverity(.critical)), "list.bullet.rectangle"))
                 } else if !softRules.isEmpty {
                     let examples = softRules.prefix(2)
                         .map { "\($0.domain) → \($0.resolvedLeaf ?? $0.proxy)" }
@@ -343,7 +343,7 @@ public final class GuardService {
             let shown = Set(proxy.entries.map { "\($0.host):\($0.port)" }).sorted().joined(separator: "、")
             if let bad = wrong.first {
                 checks.append(check("systemProxy", "系统代理", "\(bad.kind) 指向 \(bad.host):\(bad.port)，不是 Clash",
-                                    .critical, proxyIcon))
+                                    !local.contains(bad.host.lowercased()) ? .critical : configRead.confirmedSeverity(.critical), proxyIcon))
             } else {
                 checks.append(check("systemProxy", "系统代理", shown, .ok, proxyIcon))
             }
@@ -364,6 +364,9 @@ public final class GuardService {
                 checks.append(check("ipv6", "IPv6",
                                     hasIPv6 ? "有全局 IPv6，预览模式无法确认 PF 封锁" : "无全局 IPv6",
                                     hasIPv6 ? .warning : .ok, "globe"))
+            } else if pfRead.severity != .ok {
+                _ = localRisks.unavailable("ipv6")
+                checks.append(check("ipv6", "IPv6", "防护状态未确认，正在重新读取", .warning, "globe"))
             } else if pf.effective {
                 checks.append(check("ipv6", "IPv6", hasIPv6 ? "全局 IPv6 已封锁" : "无全局 IPv6 · 封锁已就绪", .ok, "globe"))
             } else {

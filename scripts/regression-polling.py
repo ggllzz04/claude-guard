@@ -97,7 +97,7 @@ with tempfile.TemporaryDirectory(prefix='cg-polling-', dir='/private/tmp') as te
             value = copy.deepcopy(responses.get(self.path, {}))
             if fault == 'slow' and self.path == endpoint:
                 time.sleep(.8)
-            if fault == 'stall' and self.path in ['/configs', '/proxies', '/rules']:
+            if fault == 'stall' and self.path in ['/configs', '/proxies', '/rules'] and (endpoint == 'all' or self.path == endpoint):
                 time.sleep(4)
             if fault == 'failed' and (endpoint == 'all' or self.path == endpoint):
                 self.send_error(503)
@@ -206,11 +206,11 @@ with tempfile.TemporaryDirectory(prefix='cg-polling-', dir='/private/tmp') as te
         check(managed.poll() is None, 'Short API outage is yellow without closing')
         healthy()
         started = time.monotonic()
-        state.update(fault='stall')
+        state.update(fault='stall', endpoint='all')
         wait(lambda s: s.get('lastError') and s['state'] == 'attention', timeout=6)
-        time.sleep(max(0, 8 - (time.monotonic() - started)))
+        time.sleep(max(0, 24 - (time.monotonic() - started)))
         check(managed.poll() is None and snapshots[-1]['state'] == 'attention',
-              'Eight seconds of real request timeouts never closes a healthy proxy')
+              '24 seconds of simultaneous API timeouts never closes a healthy proxy')
         healthy()
         for endpoint in ['/configs', '/proxies', '/rules']:
             state.update(fault='malformed', endpoint=endpoint)
@@ -218,15 +218,22 @@ with tempfile.TemporaryDirectory(prefix='cg-polling-', dir='/private/tmp') as te
             time.sleep(.4)
             check(managed.poll() is None and snapshots[-1]['state'] != 'blocked', f'Malformed {endpoint} never synthesizes a confirmed fault')
             healthy()
-        # A live proxy with a persistently unreadable monitoring endpoint is not trusted forever.
-        state.update(fault='failed', endpoint='/configs')
-        started = time.monotonic()
-        managed.wait(timeout=20)
-        elapsed = time.monotonic()-started
-        check(elapsed >= 15, 'Persistent unreadable API only closes after grace', seconds=round(elapsed, 2))
-        closed = wait(lambda s: any('关闭了' in e['title'] for e in s['events']))
-        check(any('/configs' in e['detail'] for e in closed['events'] if '关闭了' in e['title']), 'Close log contains endpoint and exact failure')
-        healthy()
+        # Reproduce sustained rule-read timeouts beyond the previous 15-second
+        # threshold, without saturating host CPUs or touching real applications.
+        for fault, endpoint, duration in [('stall', '/rules', 26), ('failed', '/configs', 20),
+                                          ('failed', '/proxies', 20)]:
+            state.update(fault=fault, endpoint=endpoint)
+            started = time.monotonic()
+            wait(lambda s: endpoint in (s.get('lastError') or '') and s['state'] == 'attention', timeout=9)
+            time.sleep(max(0, duration - (time.monotonic() - started)))
+            check(managed.poll() is None and snapshots[-1]['state'] == 'attention',
+                  f'Persistent {endpoint} read failure never closes a healthy mock', seconds=duration)
+            check(not any('关闭了' in e['title'] for e in snapshots[-1]['events']),
+                  f'Persistent {endpoint} failure is recorded without a close event')
+            healthy()
+        # Only disposable children are terminated for cleanup.
+        managed.terminate()
+        managed.wait(timeout=3)
         for fault, limit in [('tun-off', 3), ('mode-global', 3), ('ai-direct', 4), ('rules-direct', 6)]:
             managed = child()
             started = time.monotonic()
@@ -240,9 +247,21 @@ with tempfile.TemporaryDirectory(prefix='cg-polling-', dir='/private/tmp') as te
                         'ai-direct': 'aiGroup', 'rules-direct': 'rules'}[fault]
             wait(lambda s: any(c['id'] == check_id and c['severity'] == 'critical' for c in s['checks']))
             check(True, f'Confirmed {fault} still closes promptly', ms=closed_ms)
+            if fault in ['mode-global', 'ai-direct', 'rules-direct']:
+                endpoint, read_id = {'mode-global': ('/configs', 'clash'),
+                                     'ai-direct': ('/proxies', 'proxyRead'),
+                                     'rules-direct': ('/rules', 'rulesRead')}[fault]
+                state.update(fault='failed', endpoint=endpoint)
+                wait(lambda s: s['state'] == 'attention' and
+                     any(c['id'] == read_id and c['severity'] == 'warning' for c in s['checks']))
+                cached = child()
+                time.sleep(3)
+                check(cached.poll() is None, f'Unreadable cached {fault} cannot close a new mock')
+                cached.terminate()
+                cached.wait(timeout=3)
             healthy()
         managed = child()
-        state.update(fault='stall')
+        state.update(fault='stall', endpoint='all')
         wait(lambda s: s.get('lastError') and s['state'] == 'attention', timeout=6)
         started = time.monotonic()
         listener.close()

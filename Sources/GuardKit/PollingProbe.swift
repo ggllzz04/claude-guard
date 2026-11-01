@@ -1,26 +1,28 @@
 import Foundation
 
-/// 读取失败与已确认的异常分开：短暂忙碌只提示，长期失去监测能力才关闭。
+/// 读取失败只能证明监测暂不可用；持续时间与重试次数均不能证明代理已经失效。
 public struct ReadFailureTracker {
-    public static let grace: TimeInterval = 15
     private var firstFailure: TimeInterval?
-    private var failures = 0
+    public private(set) var consecutiveFailures = 0
 
     public init() {}
 
     public mutating func succeeded() {
         firstFailure = nil
-        failures = 0
+        consecutiveFailures = 0
     }
 
     public mutating func failed(at now: TimeInterval) {
         if firstFailure == nil { firstFailure = now }
-        failures += 1
+        consecutiveFailures += 1
     }
 
     public func severity(at now: TimeInterval) -> Severity {
-        guard let firstFailure else { return .ok }
-        return failures >= 3 && now - firstFailure >= Self.grace ? .critical : .warning
+        firstFailure == nil ? .ok : .warning
+    }
+
+    public func failureDuration(at now: TimeInterval) -> TimeInterval {
+        firstFailure.map { max(0, now - $0) } ?? 0
     }
 }
 
@@ -29,6 +31,11 @@ struct ProbeReading<Value> {
     var severity: Severity
     var detail: String
     var observedAt: TimeInterval?
+
+    /// 缓存可以显示，但失效或过期的读数不能成为新的自动关闭依据。
+    func confirmedSeverity(_ result: Severity) -> Severity {
+        severity == .ok ? result : .warning
+    }
 }
 
 /// 每种状态最多一个在途请求；重探测不会排队，前台检查只取已完成的结果。
@@ -45,7 +52,7 @@ final class PollingProbe<Value>: @unchecked Sendable {
     private var failures = ReadFailureTracker()
 
     init(_ name: String, interval: TimeInterval, load: @escaping () throws -> Value) {
-        queue = DispatchQueue(label: "com.local.claudeguard.probe.\(name)", qos: .default)
+        queue = DispatchQueue(label: "com.local.claudeguard.probe.\(name)", qos: .userInitiated)
         self.interval = interval
         self.load = load
     }
@@ -78,9 +85,9 @@ final class PollingProbe<Value>: @unchecked Sendable {
         }
         if let error {
             let previous = succeeded.map { "；上次成功于 \(Int(max(0, now - $0))) 秒前" } ?? ""
-            let severity = failures.severity(at: now)
-            return ProbeReading(value: value, severity: severity,
-                                detail: "\(error)\(previous)\(severity == .critical ? "；持续无法确认保护状态" : "；正在重试")",
+            let duration = Int(failures.failureDuration(at: now))
+            return ProbeReading(value: value, severity: failures.severity(at: now),
+                                detail: "\(error)\(previous)；连续失败 \(failures.consecutiveFailures) 次，持续 \(duration) 秒；状态未确认，继续重试（不会仅因此关闭应用）",
                                 observedAt: succeeded)
         }
         let stale = succeeded.map { now - $0 > max(15, interval * 3) } ?? false
@@ -93,6 +100,12 @@ final class PollingProbe<Value>: @unchecked Sendable {
 struct RiskDebouncer {
     private var counts: [String: Int] = [:]
     private var observations: [String: TimeInterval] = [:]
+
+    mutating func unavailable(_ id: String) -> Severity {
+        counts[id] = nil
+        observations[id] = nil
+        return .warning
+    }
 
     mutating func severity(_ id: String, failed: Bool,
                            observedAt: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Severity {

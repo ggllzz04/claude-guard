@@ -57,8 +57,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        // 保持监控活动，但允许 macOS 按用户的电源设置空闲睡眠。
         activityToken = ProcessInfo.processInfo.beginActivity(
-            options: [.userInitiated],
+            options: [.userInitiatedAllowingIdleSystemSleep],
             reason: "Route Guard 持续监控"
         )
         installMainMenu()
@@ -150,6 +151,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         state.stop()
+        if let activityToken { ProcessInfo.processInfo.endActivity(activityToken) }
+        activityToken = nil
     }
 
     @objc private func togglePopover() {
